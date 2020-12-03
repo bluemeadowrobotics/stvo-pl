@@ -110,8 +110,9 @@ int distance(const cv::Mat &a, const cv::Mat &b) {
 
 int matchGrid(const std::vector<point_2d> &points1, const cv::Mat &desc1, const GridStructure &grid, const cv::Mat &desc2, const GridWindow &w, std::vector<int> &matches_12) {
 
-    if (points1.size() != desc1.rows)
+    if (points1.size() != desc1.rows) {
         throw std::runtime_error("[matchGrid] Each point needs a corresponding descriptor!");
+    }
 
     int matches = 0;
     matches_12.resize(desc1.rows, -1);
@@ -135,8 +136,11 @@ int matchGrid(const std::vector<point_2d> &points1, const cv::Mat &desc1, const 
 
         std::unordered_set<int> candidates;
         grid.get(coords.first, coords.second, w, candidates);
+        // printf("[ DEBUG ] i1=%d, has %zu candidates\n", i1, candidates.size());
 
-        if (candidates.empty()) continue;
+        if (candidates.empty()) {
+            continue;
+        }
         for (const int &i2 : candidates) {
             if (i2 < 0 || i2 >= desc2.rows) continue;
 
@@ -157,7 +161,10 @@ int matchGrid(const std::vector<point_2d> &points1, const cv::Mat &desc1, const 
                 best_d2 = d;
         }
 
+        // printf("[ DEBUG ] best distance = %d 2nd best = %d\n", best_d, best_d2);
+
         if (best_d < best_d2 * Config::minRatio12P()) {
+            // printf("[ DEBUG ] Maximal candidate found, adding to matches\n");
             matches_12[i1] = best_idx;
             matches++;
         }

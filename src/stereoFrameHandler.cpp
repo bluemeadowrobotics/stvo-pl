@@ -130,7 +130,7 @@ void StereoFrameHandler::f2fTracking()
 
 void StereoFrameHandler::matchF2FPoints()
 {
-
+    std::cout << "[ DEBUG ] Doing F2F tracking" << std::endl;
     // points f2f tracking
     // --------------------------------------------------------------------------------------------------------------------
     matched_pt.clear();
@@ -139,6 +139,8 @@ void StereoFrameHandler::matchF2FPoints()
 
     std::vector<int> matches_12;
     match(prev_frame->pdesc_l, curr_frame->pdesc_l, Config::minRatio12P(), matches_12);
+
+    printf("[ DEBUG ] Matches from prev to current frame: %zu\n", matches_12.size());
 
     // bucle around pmatches
     for (int i1 = 0; i1 < matches_12.size(); ++i1) {
@@ -328,25 +330,35 @@ void StereoFrameHandler::optimizePose()
     // optimization mode
     int mode = 0;   // GN - GNR - LM
 
+    printf("[ DEBUG ] Num inliers: %d\n", n_inliers);
+
     // solver
     if( n_inliers >= Config::minFeatures() )
     {
+        std::cout << "[ DEBUG ] n_inliers >= Config::minFeatures" << std::endl;
+        printf("[ DEBUG ] Optimization mode = %d\n", mode);
         // optimize
         DT_ = DT;
         if( mode == 0 )      gaussNewtonOptimization(DT_,DT_cov,err,Config::maxIters());
         else if( mode == 1 ) gaussNewtonOptimizationRobust(DT_,DT_cov,err,Config::maxIters());
         else if( mode == 2 ) levenbergMarquardtOptimization(DT_,DT_cov,err,Config::maxIters());
 
+        // std::cout << "[ DEBUG ] Did optimization" << std::endl;
+
         // remove outliers (implement some logic based on the covariance's eigenvalues and optim error)
         if( isGoodSolution(DT_,DT_cov,err) )
         {
+            std::cout << "[ DEBUG ] isGoodSolution" << std::endl;
             removeOutliers(DT_);
+            std::cout << "[ DEBUG ] removed outliers" << std::endl;
             // refine without outliers
             if( n_inliers >= Config::minFeatures() )
             {
+                std::cout << "[ DEBUG ] Enough inliers to do another refined optimization" << std::endl;
                 if( mode == 0 )      gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef());
                 else if( mode == 1 ) gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef());
                 else if( mode == 2 ) levenbergMarquardtOptimization(DT,DT_cov,err,Config::maxItersRef());
+                std::cout << "[ DEBUG ] Finished refined opt" << std::endl;
             }
             else
             {
@@ -356,6 +368,7 @@ void StereoFrameHandler::optimizePose()
         }
         else
         {
+            std::cout << "[ DEBUG ] Not a good solution, doign robust GaussNewtonRobust" << std::endl;
             gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef());
             //DT     = Matrix4d::Identity();
             //cout << "[StVO] optimization didn't converge" << endl;
@@ -371,16 +384,25 @@ void StereoFrameHandler::optimizePose()
     // set estimated pose
     if( isGoodSolution(DT,DT_cov,err) && DT != Matrix4d::Identity() )
     {
+        std::cout << "[ DEBUG ] isGoodSolution, setting pose" << std::endl;
         curr_frame->DT       = expmap_se3(logmap_se3( inverse_se3( DT ) ));
+        // std::cout << "[ DEBUG ] 1" << std::endl;
         curr_frame->DT_cov   = DT_cov;
+        // std::cout << "[ DEBUG ] 2" << std::endl;
         curr_frame->err_norm = err;
+        // std::cout << "[ DEBUG ] 3" << std::endl;
         curr_frame->Tfw      = expmap_se3(logmap_se3( prev_frame->Tfw * curr_frame->DT ));
+        // std::cout << "[ DEBUG ] 4" << std::endl;
         curr_frame->Tfw_cov  = unccomp_se3( prev_frame->Tfw, prev_frame->Tfw_cov, DT_cov );
+        // std::cout << "[ DEBUG ] 5" << std::endl;
         SelfAdjointEigenSolver<Matrix6d> eigensolver(DT_cov);
+        // std::cout << "[ DEBUG ] 6" << std::endl;
         curr_frame->DT_cov_eig = eigensolver.eigenvalues();
+        // std::cout << "[ DEBUG ] 7" << std::endl;
     }
     else
     {
+        std::cout << "[ DEBUG ] Not good solution, setting identify pose" << std::endl;
         //setAsOutliers();
         curr_frame->DT       = Matrix4d::Identity();
         curr_frame->DT_cov   = Matrix6d::Zero();

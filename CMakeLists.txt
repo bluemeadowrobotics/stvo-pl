@@ -1,11 +1,11 @@
 project( stvo-pl )
 
 cmake_minimum_required(VERSION 2.7)
-find_package(OpenCV 3 REQUIRED)
-find_package(Boost REQUIRED COMPONENTS regex thread system filesystem)	
+find_package(OpenCV 3.4.0 REQUIRED)
+find_package(Boost REQUIRED COMPONENTS regex thread system filesystem)
 
 if(COMMAND cmake_policy)
-  	cmake_policy(SET CMP0003 NEW)	
+  	cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
 link_directories(${OpenCV_LIBS_DIR})
 include_directories(${OpenCV2_INCLUDE_DIRS})
@@ -32,6 +32,7 @@ endif(HAS_MRPT)
 # YAML library
 FIND_PACKAGE(yaml-cpp REQUIRED CONFIG PATHS ${YAML_PATHS})
 
+
 # Include dirs
 include_directories(
   include
@@ -43,14 +44,15 @@ include_directories(
 )
 
 # Set link libraries
-list(APPEND LINK_LIBS 
+list(APPEND LINK_LIBS
   ${OpenCV_LIBS}
   ${Boost_LIBRARIES}
   ${YAML_CPP_LIBRARIES}
   ${PROJECT_SOURCE_DIR}/3rdparty/line_descriptor/lib/liblinedesc.so
+  /usr/lib/x86_64-linux-gnu/libopencv_ximgproc.so.3.2
 )
 
-# Set source files 
+# Set source files
 if(HAS_MRPT)
 list(APPEND SOURCEFILES
   src/sceneRepresentation.cpp
@@ -88,7 +90,7 @@ endif()
 
 # Applications
 add_executable       ( imagesStVO app/imagesStVO.cpp )
-target_link_libraries( imagesStVO stvo )
+target_link_libraries( imagesStVO stvo ${OpenCV_LIBS} opencv_imgproc)
 
 
 

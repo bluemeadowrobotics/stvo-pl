@@ -35,6 +35,15 @@ std::string to_string_with_precision(const T a_value, const int n = 6)
     return out.str();
 }
 
+// Copy vector a into b.
+// https://eigen.tuxfamily.org/bz/show_bug.cgi?id=1233
+static void SafeCopy(CVectorDouble& a, CVectorDouble& b) {
+    b = CVectorDouble(6, 0.0);
+    for (size_t i = 0; i < 6; ++i) {
+        b(i) = a(i);
+    }
+}
+
 // Constructors and destructor
 
 sceneRepresentation::sceneRepresentation(){
@@ -108,6 +117,7 @@ sceneRepresentation::sceneRepresentation(string configFile){
     CPose3D x_aux(getPoseFormat(x_cw));
     pose_ini = x_aux;
 
+    v_aux_ = CVectorDouble(6, 0.0);
 }
 
 sceneRepresentation::~sceneRepresentation(){
@@ -137,7 +147,7 @@ void sceneRepresentation::initializeScene(Matrix4d x_0, bool has_gt){
     pose_0  = x_aux;
     pose_gt = pose_ini - change;
     x_ini   = x_0;
-    pose.getAsVector(v_aux);
+    pose.getAsVector(v_aux); // Converts pose to [x, y, z, roll, pitch, yaw]
     pose1.getAsVector(v_aux1);
     pose_gt.getAsVector(v_auxgt);
 
@@ -261,9 +271,11 @@ void sceneRepresentation::initializeScene(Matrix4d x_0, bool has_gt){
 // Update the scene
 
 bool sceneRepresentation::updateScene(){
-
+    // std::cout << "starting updateScene()" << std::endl;
     theScene = win->get3DSceneAndLock();
     bool restart = false;
+
+    // std::cout << "1" << std::endl;
 
     // Update camera pose
     CPose3D x_aux(getPoseFormat(x));
@@ -284,9 +296,13 @@ bool sceneRepresentation::updateScene(){
         frustObj1->setPose(pose+frustumR_);
     }
 
+    // std::cout << "2" << std::endl;
+
     // Set camera pointing to the current trajectory
     if(hasCamFix)
         win->setCameraPointingToPoint(v_aux(0),v_aux(1),v_aux(2));
+
+    // std::cout << "3" << std::endl;
 
     // Update the GT camera pose
     if(hasGT){
@@ -301,7 +317,7 @@ bool sceneRepresentation::updateScene(){
         float b_ = v_auxgt(4);
         float c_ = v_auxgt(5);
         v_auxgt(1) =  z_;
-        v_auxgt(2) = -y_;        
+        v_auxgt(2) = -y_;
         v_auxgt(4) = -c_;
         v_auxgt(5) =  b_;
         pose_gt = CPose3D(TPose3D(v_auxgt(0),v_auxgt(1),v_auxgt(2),v_auxgt(3),v_auxgt(4),v_auxgt(5)));
@@ -317,6 +333,8 @@ bool sceneRepresentation::updateScene(){
         gtObj->setPose(pose_gt);
         srefObjGT->setPose(pose_gt);
     }
+
+    // std::cout << "4" << std::endl;
 
     // Update the comparison camera pose
     if(hasComparison){
@@ -334,6 +352,8 @@ bool sceneRepresentation::updateScene(){
         bbObj1->setPose(pose1);
         srefObj1->setPose(pose1);
     }
+
+    // std::cout << "5" << std::endl;
 
     // Update the text
     if(hasText){
@@ -353,6 +373,8 @@ bool sceneRepresentation::updateScene(){
         image->setImageView( img_mrpt_image );
     }
 
+    // std::cout << "6" << std::endl;
+
     // Update the lines
     lineObj->clear();
     if(hasLines){
@@ -361,6 +383,8 @@ bool sceneRepresentation::updateScene(){
             lineObj->appendLine(lData(0,i),lData(1,i),lData(2,i), lData(3,i),lData(4,i),lData(5,i));
         lineObj->setPose(pose);
     }
+
+    // std::cout << "7" << std::endl;
 
     // Update the points
     pointObj->clear();
@@ -371,12 +395,16 @@ bool sceneRepresentation::updateScene(){
         pointObj->setPose(pose);
     }
 
+    // std::cout << "8" << std::endl;
+
     // Re-paint the scene
     win->unlockAccess3DScene();
     win->repaint();
 
+    // std::cout << "9" << std::endl;
+
     // Key events   -       TODO: change the trick to employ viewports
-    if(win->keyHit()){       
+    if(win->keyHit()){
         key = win->getPushedKey(&kmods);
         if(key == MRPTK_SPACE){                     // Space    Reset VO
             theScene->clear();
@@ -504,35 +532,64 @@ bool sceneRepresentation::updateScene(){
 }
 
 bool sceneRepresentation::updateScene(list<PointFeature*> matched_pt, list<LineFeature*> matched_ls ){
-
+    // std::cout << "updateScene" << std::endl;
     theScene = win->get3DSceneAndLock();
     bool restart = false;
 
+    // std::cout << "1" << std::endl;
+
     // Update camera pose
-    CPose3D x_aux(getPoseFormat(x));
-    pose = pose + x_aux;
-    v_aux_ = v_aux;
-    pose.getAsVector(v_aux);
+    CPose3D x_aux(getPoseFormat(x)); // Convert to CPose3D
+    // std::cout << "1.01" << std::endl;
+    pose = pose + x_aux;    // Update the current pose with odometry.
+    // std::cout << "1.02" << std::endl;
+    // std::cout << "First pose:\n" << v_aux << std::endl;
+    // std::cout << "2nd pose:\n" << v_aux_ << std::endl;
+    // v_aux_ = v_aux;         // Move v_auv into a temp placeholder?
+    // for (size_t i = 0; i < 6; ++i) {
+        // v_aux_(i) = v_aux(i);
+    // }
+    SafeCopy(v_aux, v_aux_);
+    // std::cout << "1.03" << std::endl;
+    pose.getAsVector(v_aux); // Push the current pose into the 6D vector.
+    // std::cout << "1.04" << std::endl;
+
+    // std::cout << "1.1" << std::endl;
+
+    // Draw line from prev pose to current.
     if(hasTraj){
+        // std::cout << "hasTraj" << std::endl;
         opengl::CSimpleLinePtr obj = opengl::CSimpleLine::Create();
         obj->setLineCoords(v_aux_(0),v_aux_(1),v_aux_(2), v_aux(0),v_aux(1),v_aux(2));
         obj->setLineWidth(sline);
         obj->setColor(0,0,0.7);
         theScene->insert( obj );
     }
+
+    // std::cout << "1.2" << std::endl;
     bbObj->setPose(pose);
     srefObj->setPose(pose);
+
+    // std::cout << "1.3" << std::endl;
+
     if(hasFrustum){
+        // std::cout << "hasFrustum" << std::endl;
         frustObj->setPose(pose+frustumL_);
         frustObj1->setPose(pose+frustumR_);
     }
+
+    // std::cout << "2" << std::endl;
 
     // Set camera pointing to the current trajectory
     if(hasCamFix)
         win->setCameraPointingToPoint(v_aux(0),v_aux(1),v_aux(2));
 
+
+    // std::cout << "2.5" << std::endl;
+
     // Update the GT camera pose
     if(hasGT){
+        // std::cout << "hasGT" << std::endl;
         CPose3D x_auxgt(getPoseFormat(xgt));
         //pose_gt = pose_gt + x_auxgt;
         pose_gt = x_auxgt;
@@ -547,7 +604,8 @@ bool sceneRepresentation::updateScene(list<PointFeature*> matched_pt, list<LineF
         v_auxgt(2) = -y_;
         v_auxgt(4) = -c_;
         v_auxgt(5) =  b_;
-        pose_gt = TPose3D(v_auxgt(0),v_auxgt(1),v_auxgt(2),v_auxgt(3),v_auxgt(4),v_auxgt(5));
+        // pose_gt = TPose3D(v_auxgt(0),v_auxgt(1),v_auxgt(2),v_auxgt(3),v_auxgt(4),v_auxgt(5));
+        pose_gt = CPose3D(TPose3D(v_auxgt(0),v_auxgt(1),v_auxgt(2),v_auxgt(3),v_auxgt(4),v_auxgt(5)));
 
         if(hasTraj){
             opengl::CSimpleLinePtr obj = opengl::CSimpleLine::Create();
@@ -560,22 +618,33 @@ bool sceneRepresentation::updateScene(list<PointFeature*> matched_pt, list<LineF
         srefObjGT->setPose(pose_gt);
     }
 
+    // std::cout << "3" << std::endl;
+
     // Update the comparison camera pose
     if(hasComparison){
+        // std::cout << "hasComparison" << std::endl;
         CPose3D x_aux1(getPoseFormat(xcomp));
         pose1 = pose1 + x_aux1;
-        v_aux1_ = v_aux1;
+        // v_aux1_ = v_aux1;
+        SafeCopy(v_aux1, v_aux1_);
+        // std::cout << "did copy" << std::endl;
         pose1.getAsVector(v_aux1);
+        // std::cout << "asvector" << std::endl;
         if(hasTraj){
             opengl::CSimpleLinePtr obj = opengl::CSimpleLine::Create();
             obj->setLineCoords(v_aux1_(0),v_aux1_(1),v_aux1_(2), v_aux1(0),v_aux1(1),v_aux1(2));
             obj->setLineWidth(sline);
             obj->setColor(0,0.7,0);
             theScene->insert( obj );
+            // std::cout << "did hasTraj" << std::endl;
         }
         bbObj1->setPose(pose1);
+        // std::cout << "set1" << std::endl;
         srefObj1->setPose(pose1);
+        // std::cout << "set2" << std::endl;
     }
+
+    // std::cout << "4" << std::endl;/
 
     // Update the text
     if(hasText){
@@ -583,11 +652,15 @@ bool sceneRepresentation::updateScene(list<PointFeature*> matched_pt, list<LineF
         win->addTextMessage(0.85,0.95, text, TColorf(.0,.0,.0), 0, mrpt::opengl::MRPT_GLUT_BITMAP_HELVETICA_10 );
     }
 
+    // std::cout << "5" << std::endl;
+
     // Update the covariance
     if(hasCov){
         elliObj->setPose(pose+ellPose);
         elliObj->setCovMatrix(getCovFormat(cov));
     }
+
+    // std::cout << "6" << std::endl;
 
     // Update the image
     if(hasImg){
@@ -600,6 +673,8 @@ bool sceneRepresentation::updateScene(list<PointFeature*> matched_pt, list<LineF
         //image->setImageView( img_mrpt_image );
     }
 
+    // std::cout << "7" << std::endl;
+
     // Update the lines
     lineObj->clear();
     if(hasLines){
@@ -611,6 +686,8 @@ bool sceneRepresentation::updateScene(list<PointFeature*> matched_pt, list<LineF
         }
         lineObj->setPose(pose);
     }
+
+    // std::cout << "8" << std::endl;
 
     // Update the points
     pointObj->clear();
@@ -632,6 +709,8 @@ bool sceneRepresentation::updateScene(list<PointFeature*> matched_pt, list<LineF
         }
         pointObj->setPose(pose);
     }
+
+    // std::cout << "9" << std::endl;
 
     // Re-paint the scene
     win->unlockAccess3DScene();
@@ -790,7 +869,7 @@ void sceneRepresentation::plotPointsCovariances(){
         covP_an(2,1) = covP_an(1,2);
         covP_an << covP_an * bsigmaP / (disp2*disp2);
         // Insertion of the ellipsoids
-        CEllipsoidPtr elliAux_ = opengl::CEllipsoid::Create();        
+        CEllipsoidPtr elliAux_ = opengl::CEllipsoid::Create();
         elliAux_->setQuantiles(1.0);
         elliAux_->enableDrawSolid3D(true);
         elliAux_->setCovMatrix(getCovFormat(covP_an));
@@ -1024,6 +1103,7 @@ CPose3D sceneRepresentation::getPoseXYZ(VectorXd x){
     return pose;
 }
 
+// Converts Eigen to MRPT type?
 CMatrixDouble sceneRepresentation::getPoseFormat(Matrix4d T){
     CMatrixDouble T_(4,4);
     for(unsigned int i = 0; i < 4; i++){

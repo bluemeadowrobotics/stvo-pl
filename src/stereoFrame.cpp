@@ -94,7 +94,11 @@ void StereoFrame::detectStereoPoints( int fast_th )
     {
         detectPointFeatures( img_l, points_l, pdesc_l, fast_th );
         detectPointFeatures( img_r, points_r, pdesc_r, fast_th );
+        // cv::imshow("img_l", img_l);
+        // cv::waitKey(0);
     }
+
+    printf("Detected %zu points in left and %d in right\n", points_l.size(), points_r.size());
 
     // perform the stereo matching
     matchStereoPoints(points_l, points_r, pdesc_l, pdesc_r, (frame_idx==0) );
@@ -123,13 +127,16 @@ void StereoFrame::matchStereoPoints( vector<KeyPoint> points_l, vector<KeyPoint>
     // Points stereo matching
     // --------------------------------------------------------------------------------------------------------------------
     stereo_pt.clear();
-    if (!Config::hasPoints() || points_l.empty() || points_r.empty())
+    if (!Config::hasPoints() || points_l.empty() || points_r.empty()) {
+        // printf("[ DEBUG ] points_l or points_r empty, not matching");
         return;
+    }
 
     std::vector<point_2d> coords;
     coords.reserve(points_l.size());
-    for (const KeyPoint &kp : points_l)
+    for (const KeyPoint &kp : points_l) {
         coords.push_back(std::make_pair(kp.pt.x * inv_width, kp.pt.y * inv_height));
+    }
 
     //Fill in grid
     GridStructure grid(GRID_ROWS, GRID_COLS);
@@ -144,7 +151,8 @@ void StereoFrame::matchStereoPoints( vector<KeyPoint> points_l, vector<KeyPoint>
 
     std::vector<int> matches_12;
     matchGrid(coords, pdesc_l, grid, pdesc_r, w, matches_12);
-//    match(pdesc_l, pdesc_r, Config::minRatio12P(), matches_12);
+    // printf("[ DEBUG ] Total matches = %d\n", matches_12.size());
+    //    match(pdesc_l, pdesc_r, Config::minRatio12P(), matches_12);
 
     // bucle around pmatches
     Mat pdesc_l_aux;
@@ -157,6 +165,7 @@ void StereoFrame::matchStereoPoints( vector<KeyPoint> points_l, vector<KeyPoint>
         if (std::abs(points_l[i1].pt.y - points_r[i2].pt.y) <= Config::maxDistEpip()) {
             // check minimal disparity
             double disp_ = points_l[i1].pt.x - points_r[i2].pt.x;
+            // printf("[ DEBUG ] Disparity = %f\n", disp_);
             if (disp_ >= Config::minDisp()){
                 pdesc_l_aux.push_back(pdesc_l_.row(i1));
                 Vector2d pl_(points_l[i1].pt.x, points_l[i1].pt.y);
@@ -165,9 +174,15 @@ void StereoFrame::matchStereoPoints( vector<KeyPoint> points_l, vector<KeyPoint>
                     stereo_pt.push_back(new PointFeature(pl_, disp_, P_, pt_idx++, points_l[i1].octave));
                 else
                     stereo_pt.push_back(new PointFeature(pl_, disp_, P_, -1, points_l[i1].octave));
+            } else {
+                // std::cout << "[ DEBUG ] Match rejected due to min disp constraint" << std::endl;
             }
+        } else {
+            // std::cout << "[ DEBUG ] Match rejected due to vertical epipolar constraint" << std::endl;
         }
     }
+
+    printf("[ DEBUG ] Number of stereo points: %zu \n", stereo_pt.size());
 
     pdesc_l_ = pdesc_l_aux;
 }

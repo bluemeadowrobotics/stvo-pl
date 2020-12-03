@@ -23,6 +23,7 @@
 #pragma once
 #include <stereoFrame.h>
 #include <stereoFeatures.h>
+#include <random>
 
 typedef Matrix<double,6,6> Matrix6d;
 typedef Matrix<double,6,1> Vector6d;

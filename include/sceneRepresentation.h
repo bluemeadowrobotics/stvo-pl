@@ -44,6 +44,7 @@ using namespace mrpt::maps;
 using namespace cv;
 
 #include <eigen3/Eigen/Core>
+#include <eigen3/Eigen/Dense>
 using namespace Eigen;
 
 #include <stereoFeatures.h>
@@ -111,6 +112,7 @@ private:
 
 
     float           sbb, saxis, srad, sref, sline, sfreq, szoom, selli, selev, sazim, sfrust, slinef;
+    // Eigen::VectorXd v_aux, v_aux_, v_aux1, v_aux1_, v_auxgt, gt_aux_, v_auxgt_;
     CVectorDouble   v_aux, v_aux_, v_aux1, v_aux1_, v_auxgt, gt_aux_, v_auxgt_;
     CPose3D         pose, pose_0, pose_gt, pose_ini, ellPose, pose1,  change, frustumL_, frustumR_;
     Matrix4d        x_ini;
@@ -119,6 +121,7 @@ private:
     CMatrixDouble33 cov3D;
     bool            hasCamFix, hasText, hasCov, hasGT, hasChange, hasImg, hasLines, hasPoints, hasFrustum, hasComparison, hasLegend, hasHelp, hasAxes, hasTraj, isKitti;
 
+    // Why would you do this...
     Matrix4d        x, xgt, xcomp;
     MatrixXd        cov, W;
     unsigned int    frame, nPoints, nPointsH, nLines, nLinesH;

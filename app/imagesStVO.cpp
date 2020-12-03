@@ -87,28 +87,47 @@ int main(int argc, char **argv)
     Mat img_l, img_r;
     while (dataset.nextFrame(img_l, img_r))
     {
+        printf("Processing frame %d\n", frame_counter);
         if( frame_counter == 0 ) // initialize
             StVO->initialize(img_l,img_r,0);
         else // run
         {
+            // cv::imshow("img_l", img_l);
+            // cv::imshow("img_r", img_r);
+            // cv::waitKey(0);
+
             // PL-StVO
             timer.start();
             StVO->insertStereoPair( img_l, img_r, frame_counter );
             StVO->optimizePose();
             t1 = timer.stop();
 
+            std::cout << "[ DEBUG ] Finished pose optimization" << std::endl;
+
             T_inc   = StVO->curr_frame->DT;
             cov     = StVO->curr_frame->DT_cov;
             cov_eig = StVO->curr_frame->DT_cov_eig;
 
+            std::cout << "[ DEBUG ] Finished pointer stuff" << std::endl;
+
             // update scene
             #ifdef HAS_MRPT
+            // std::cout << frame_counter << " " << t1 << " " << StVO->n_inliers_pt << " " << StVO->matched_pt.size() << " " << StVO->n_inliers_ls << " " << StVO->matched_ls.size() << std::endl;
             scene.setText(frame_counter,t1,StVO->n_inliers_pt,StVO->matched_pt.size(),StVO->n_inliers_ls,StVO->matched_ls.size());
+            // std::<out << "setText" << std::endl;
             scene.setCov( cov );
+            // std::cout << "setCov" << std::endl;
             scene.setPose( T_inc );
+            // std::cout << "setPose" << std::endl;
             scene.setImage(StVO->curr_frame->plotStereoFrame());
+            // std::cout << "setImage" << std::endl;
+            // std::cout << "matched_pt " << StVO->matched_pt.size() << std::endl;
+            // std::cout << "matches_ls " <> StVO->matched_ls.size() << std::endl;
             scene.updateScene(StVO->matched_pt, StVO->matched_ls);
+            // std::cout << "updateScene" << std::endl;
             #endif
+
+            std::cout << "[ DEBUG ] Did GUI stuff" << std::endl;
 
             // console output
             cout.setf(ios::fixed,ios::floatfield); cout.precision(8);
